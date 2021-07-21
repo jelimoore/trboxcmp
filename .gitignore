@@ -1,3 +1,6 @@
 build/
 dist/
-src/*.egg-info
+*.egg-info
+testing.py
+__pycache__/
+*.pyc
