@@ -6,10 +6,6 @@ import logging
 import asyncio
 import time
 
-class UtilBytes():
-    NULL_BYTE = b'\x00'
-    NULL_BYTE_PAIR = b'\x00\x00'
-
 class XcmpXnlOpCodes():
     XNL_MASTER_STATUS_BDCAST = b'\x00\x02'
     XNL_KEY_REQUEST = b'\x00\x04'
@@ -164,8 +160,7 @@ class XprXcmp:
     def _listener_loop(self):
         while True:
             data = self._sock.recv(1024)
-            logging.info("Received a message")
-            print(data)
+            logging.info("Received a message {}".format(data))
             opCode = self._getOpCode(data)
             messageId = self._getMessageId(data)
             flag = self._getFlag(data)
@@ -202,19 +197,19 @@ class XprXcmp:
         async def buttonPressRoutine():
             #left, left, left, right, right, right
             self.pressButton(ButtonCodes.LEFT)
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.1)
 
             self.pressButton(ButtonCodes.LEFT)
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.1)
 
             self.pressButton(ButtonCodes.LEFT)
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.1)
 
             self.pressButton(ButtonCodes.RIGHT)
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.1)
 
             self.pressButton(ButtonCodes.RIGHT)
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.1)
 
             self.pressButton(ButtonCodes.RIGHT)
         asyncio.run(buttonPressRoutine())
@@ -247,13 +242,6 @@ class XprXcmp:
     #byte generation functions
 
     def _genChZnSel(self, function, zone=0, position=0):
-        '''4 - ch dn
-        3 - ch up
-        6 - chsel
-        7 - znsel
-        129 - request num zones
-        130 - how many ch in zn'''
-
         transIdBaseBytes = int(self._transIdBase).to_bytes(1, "big")
         transIdBytes = int(self._transId).to_bytes(1, "big")
         flagBytes = int(self._flag).to_bytes(1, "big")
