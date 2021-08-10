@@ -38,6 +38,18 @@ class ButtonCodes():
     P2 = b'\xa1'
     P3 = b'\xa2'
     P4 = b'\xa3'
+    KP_1 = b''
+    KP_2 = b''
+    KP_3 = b''
+    KP_4 = b''
+    KP_5 = b''
+    KP_6 = b''
+    KP_7 = b''
+    KP_8 = b''
+    KP_9 = b''
+    KP_0 = b''
+    KP_POUND = b''
+    KP_STAR = b''
 
 class XprXcmp:
     def __init__(self, keys, delta, ip="192.168.10.1", port=8002):
