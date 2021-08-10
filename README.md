@@ -1,4 +1,4 @@
-# trbo-data-svc
+# trboxcmp
 
 This is a library that interfaces with the MotoTRBO XCMP protocol. This allows control of a radio via remote.
 
@@ -19,11 +19,18 @@ Todos:
 Most of the basic data services can be set up as such:
 
     from trboxcmp import xcmp
-    listener = xcmp.XCMP()
+    XCMP_KEYS = [
+        0x00000000,
+        0x00000000,
+        0x00000000,
+        0x00000000
+    ]
+    XCMP_DELTA = 0x00000000
+    listener = xcmp.XCMP(keys, delta)
     listener.connect()
     listener.sendChUp()
 
-That's all you need!
+The true keys and delta are property of Motorola Solutions and will not be included with this library.
 
 ## Documentation
 
