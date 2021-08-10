@@ -19,13 +19,13 @@ Todos:
 Most of the basic data services can be set up as such:
 
     from trboxcmp import xcmp
-    XCMP_KEYS = [
+    keys = [
         0x00000000,
         0x00000000,
         0x00000000,
         0x00000000
     ]
-    XCMP_DELTA = 0x00000000
+    delta = 0x00000000
     listener = xcmp.XCMP(keys, delta)
     listener.connect()
     listener.sendChUp()
