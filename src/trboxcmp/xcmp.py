@@ -1,274 +1,181 @@
-import numpy as np
-import warnings
-import socket
-from multiprocessing import Process, Value
 import logging
 import asyncio
 import time
+import binascii
+from src.trboxcmp.xnl import XnlListener
+from src.trboxcmp.XcmpByteFactory import XcmpByteFactory
+from src.trboxcmp.XcmpOpCodes import XcmpOpCodes, XcmpConsts
 
-class XcmpXnlOpCodes():
-    XNL_MASTER_STATUS_BDCAST = b'\x00\x02'
-    XNL_KEY_REQUEST = b'\x00\x04'
-    XNL_KEY_REPLY = b'\x00\x05'
-    XNL_CONN_REQUEST = b'\x00\x06'
-    XNL_CONN_REPLY = b'\x00\x07'
-    XNL_SYSMAP_BDCAST = b'\x00\x09'
-    XNL_DATA = b'\x00\x0b'
-    XNL_ACK = b'\x00\x0c'
+class Xcmp:
+    # op defs for callback
+    OP_CALL = 1
+    OP_CALL_INFO = 2
+    OP_RADIOSTATUS = 3
+    OP_VERSTATUS = 4
+    OP_BATTLVL = 5
 
-    XCMP_DEVINITSTS_BDCAST = b'\xb4\x00'
+    def __init__(self, keys, delta, callback, ip="192.168.10.1", port=8002):
+        self._xnl = XnlListener(keys, delta, self.onXcmpIn, ip, port)
+        self._callback = callback
+        self._byteFactory = XcmpByteFactory
 
-class ChZnSelCodes():
-    CH_UP = b'\x03'
-    CH_DN = b'\x04'
-    CH_SEL = b'\x06'
-    ZN_SEL = b'\x07'
+    def sendRaw(self, bytes):
+        self._xnl.sendXcmp(bytes)
 
-class ButtonCodes():
-    STATUS_PRESSED = b'\x01'
-    STATUS_RELEASED = b'\x00'
-    LEFT = b'\x80'
-    RIGHT = b'\x82'
-    UP = b'\x87'
-    DOWN = b'\x88'
-    MENU = b'\x8b'
-    BACK = b'\x81'
-    OK = b'\x55'
-    P1 = b'\xa0'
-    P2 = b'\xa1'
-    P3 = b'\xa2'
-    P4 = b'\xa3'
-    KP_1 = b''
-    KP_2 = b''
-    KP_3 = b''
-    KP_4 = b''
-    KP_5 = b''
-    KP_6 = b''
-    KP_7 = b''
-    KP_8 = b''
-    KP_9 = b''
-    KP_0 = b''
-    KP_POUND = b''
-    KP_STAR = b''
+    def onXcmpIn(self, data):
+        logging.debug("XCMP: Incoming message: {}".format(data))
+        result = {}
+        payload = {}
 
-class XprXcmp:
-    def __init__(self, keys, delta, ip="192.168.10.1", port=8002):
-        self._key = keys
-        self._delta = delta
-        self._ip = ip
-        self._port = port
-        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._process = Process(target=self._listener_loop)
-        self._displaytext = ""
-        self._xcmpAddress = b''
-        self._zone = 0
-        self._channel = 0
-        self._brightness = 0
-        self._transIdBase = 1
-        self._transId = 0
-        self._flag = 0
+        opCode = data[0:2]
+        #if we hit an error, don't run the callback
+        dontCallBack = False
+
+        if (opCode == XcmpOpCodes.SPKR_CTRL_BCAST):
+            #msg
+            #b4 07 00 01 00 01
+            #first 2 - opcode
+            #middle 2 - ??
+            #last 2 - call status - on/off
+            result['type'] = self.OP_CALL
+
+            #decode call on/off
+            payload['callStatus'] = int.from_bytes(data[4:6], "big")
+
+        elif (opCode == XcmpOpCodes.CALL_CTRL_BCAST):
+            #msg
+            #b4 1e 06 01 01 03 00 7b 96 00 00 03 00 0c 3b
+            #first 2 - opcode
+            #2-4 - 06 01 - start of call?
+            #      06 02 - start of call?
+            #      06 08 - key
+            #      06 07 - dekey
+            #      06 03 - after grp hangtime: calls up!
+            #6-8 - rid
+            #12-14 - tgid
+            result['type'] = self.OP_CALL_INFO
+
+            payload['status'] = int.from_bytes(data[3:4], "big")
+            payload['rid'] = int.from_bytes(data[6:9], "big")
+            payload['tgid'] = int.from_bytes(data[12:15], "big")
+
+        elif (opCode == XcmpOpCodes.RADIOSTATUS_RES):
+            result['type'] = self.OP_RADIOSTATUS
+            # radio status response
+            statusCondition = data[3:4]
+            # radio model number
+            if (statusCondition == b'\x07'):
+                modelNo = data[4:17].replace(b'\x00', b'').decode()
+                payload['modelNumber'] = modelNo
+
+            # radio serial number
+            if (statusCondition == b'\x08'):
+                serialNo = data[4:14].replace(b'\x00', b'').decode()
+                payload['serialNumber'] = serialNo
+
+            # radio ID
+            if (statusCondition == b'\x0e'):
+                rid = data[5:8].replace(b'\x00', b'').decode()
+                payload['rid'] = rid
+
+        elif (opCode == XcmpOpCodes.VERSTATUS_RES):
+            result['type'] = self.OP_VERSTATUS
+            payload['version'] = data[2:18].replace(b'\x00', b'').decode()
+
+        elif (opCode == XcmpOpCodes.BATTLVL_BCAST):
+            result['type'] = self.OP_BATTLVL
+            payload['battLevel'] = int.from_bytes(data[3:4], "big")
+
+        elif (opCode == XcmpOpCodes.DEVINITSTS_BCAST):
+            #drop it on the floor, we don't care
+            dontCallBack = True
+
+        else:
+            logging.warning("Got unknown XCMP opcode: {}".format(opCode))
+            dontCallBack = True
+
+        result['payload'] = payload
         
-    def _generateKey(self, input):
-        # convert hex to bin to int (don't ask why, it's the only way that works)
-        in1 = int(''.join(format(byte, '08b') for byte in input[:4]), 2)
-        in2 = int(''.join(format(byte, '08b') for byte in input[4:]), 2)
-
-        #two's complement calculation
-        #the hex vals can represent negative numbers, so let's calculate that:
-        if (in1 > 2147483647):
-            in1 = ~in1 ^ 0xFFFFFFFF
-        if (in2 > 2147483647):
-            in2 = ~in2 ^ 0xFFFFFFFF
-
-        # set the iterational vars to be signed int32s, this is to allow intentional overflow and underflow
-        i = np.int32(in1)
-        j = np.int32(in2)
-        sum = np.int32(0)
-
-        #this will overflow by design, this is apparently how M does the stuff
-        #suppressing the warnings to clean the output up a bit
-        with warnings.catch_warnings():
-            warnings.filterwarnings('ignore', r'overflow encountered')
-            for k in range(32):
-                sum += self._delta
-                # i did not write these fucking moon runes, do not ask me what this does, i just know it does number stuff
-                i += np.int32(j << 4 & 0xfffffff0) + self._key[0] ^ np.int32(j + sum) ^ np.int32(j >> 5 & 0x7ffffff) + self._key[1]
-                j += np.int32(i << 4 & 0xfffffff0) + self._key[2] ^ np.int32(i + sum) ^ np.int32(i >> 5 & 0x7ffffff) + self._key[3]
-
-        #two's complement -> hex
-        if (i < 0):
-            i = ~i ^ 0xFFFFFFFF
-        if (j < 0):
-            j = ~j ^ 0xFFFFFFFF
-
-        # convert numpy back to python int
-        iOut = i.item()
-        jOut = j.item()
-        # convert int to bytes to pack back into the response
-        result = iOut.to_bytes(4, "big") + jOut.to_bytes(4, "big")
-        return result
-
-    def _getOpCode(self, dataIn):
-        return dataIn[2:4]
-
-    def _getMessageId(self, dataIn):
-        return dataIn[10:12]
-
-    def _getFlag(self, dataIn):
-        return dataIn[5:6]
+        if (dontCallBack == False):
+            self._callback(result)
 
     def connect(self):
-        #TODO: programatically generate the bytes
-        logging.info("Opening connection to {}:{}".format(self._ip, self._port))
-        self._sock.connect((self._ip, self._port))
-        #master status broadcast
-        data = self._sock.recv(1024)
-        opCode = self._getOpCode(data)
-        if (opCode != XcmpXnlOpCodes.XNL_MASTER_STATUS_BDCAST):
-            logging.error("Initial opcode NOT master status received!")
-            self.close()
-        
-        #auth key request/reply
-        self._sock.send(b'\x00\x0c\x00\x04\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00')
-        data = self._sock.recv(1024)
-        opCode = self._getOpCode(data)
-        tempAddr = data[14:16]
-        if (opCode != XcmpXnlOpCodes.XNL_KEY_REPLY):
-            logging.error("Key reply NOT received!")
-            self.close()
-        
-        authChallenge = data[16:]
-        authResponse = self._generateKey(authChallenge)
-        
-        #send the key to the radio
-        self._sock.send(b'\x00\x18\x00\x06\x00\x00\x00\x06' + tempAddr + b'\x00\x00\x00\x0c\x00\x00\x0a\x01' + authResponse)
-        data = self._sock.recv(1024)
-        self._xcmpAddress = data[16:18]
-        if (data[14:15] != b'\x01'):
-            logging.error("Radio replied: Invalid auth key. Status code was: {}".format(data[14:15]))
-            self.close()
-        logging.info("Connected!")
-
-        #thread off the listsner into its own event loop
-        self._listen_forever()
-
-    def send(self, bytes):
-        #inc transaction ID and flag
-        #needed for radio to accept the command
-        #TODO: inc these vals in a global generateHeader function so that the flag and transaction ID are incremented upon generation not sending
-        #but this works for now
-        self._transId+=1
-        if (self._transId > 255):
-            self._transId = 0
-        self._flag+=1
-        if (self._flag > 7):
-            self._flag = 0
-        self._sock.send(bytes)
-        
-
-    def _listen_forever(self):
-        self._process.start()
-
-    def _listener_loop(self):
-        while True:
-            data = self._sock.recv(1024)
-            logging.info("Received a message {}".format(data))
-            opCode = self._getOpCode(data)
-            messageId = self._getMessageId(data)
-            flag = self._getFlag(data)
-            if (opCode == XcmpXnlOpCodes.XNL_DATA):
-                logging.debug("Received data message, sending ACK")
-                self._sock.send(b'\x00\x0c\x00\x0c\x01' + flag + b'\x00\x06' + self._xcmpAddress + messageId + b'\x00\x00')
+        self._xnl.connect()
 
     def close(self):
-        logging.info("Closing connection, bye!")
-        self._sock.close()
-        self._process.terminate()
+        self._xnl.close()
+
+    def sendRaw(self, bytesIn):
+        self._xnl.sendXcmp(bytesIn)
 
     def setChannel(self, channel):
-        logging.debug("Setting channel to {}".format(channel))
-        bytes = self._genChZnSel(ChZnSelCodes.CH_SEL, 0, channel)
-        self.send(bytes)
+        logging.debug("XCMP: Setting channel to {}".format(channel))
+        bytes = self._byteFactory.genChZnSel(XcmpConsts.CH_SEL, 0, channel)
+        self._xnl.sendXcmp(bytes)
 
     def setZone(self, zone):
-        logging.debug("Setting zone to {}".format(zone))
-        bytes = self._genChZnSel(ChZnSelCodes.ZN_SEL, zone, 0)
-        self.send(bytes)
+        logging.debug("XCMP: Setting zone to {}".format(zone))
+        bytes = self._byteFactory.genChZnSel(XcmpConsts.ZN_SEL, zone, 0)
+        self._xnl.sendXcmp(bytes)
 
     def chUp(self):
-        logging.debug("Sending channel up")
-        bytes = self._genChZnSel(ChZnSelCodes.CH_UP)
-        self.send(bytes)
+        logging.debug("XCMP: Sending channel up")
+        bytes = self._byteFactory.genChZnSel(XcmpConsts.CH_UP)
+        self._xnl.sendXcmp(bytes)
 
     def chDown(self):
-        logging.debug("Sending channel down")
-        bytes = self._genChZnSel(ChZnSelCodes.CH_DN)
-        self.send(bytes)
+        logging.debug("XCMP: Sending channel down")
+        bytes = self._byteFactory.genChZnSel(XcmpConsts.CH_DN)
+        self._xnl.sendXcmp(bytes)
 
     def enterRSSI(self):
         async def buttonPressRoutine():
             #left, left, left, right, right, right
-            self.pressButton(ButtonCodes.LEFT)
+            self.pressButton(XcmpConsts.BTN_LEFT)
             await asyncio.sleep(0.1)
 
-            self.pressButton(ButtonCodes.LEFT)
+            self.pressButton(XcmpConsts.BTN_LEFT)
             await asyncio.sleep(0.1)
 
-            self.pressButton(ButtonCodes.LEFT)
+            self.pressButton(XcmpConsts.BTN_LEFT)
             await asyncio.sleep(0.1)
 
-            self.pressButton(ButtonCodes.RIGHT)
+            self.pressButton(XcmpConsts.BTN_RIGHT)
             await asyncio.sleep(0.1)
 
-            self.pressButton(ButtonCodes.RIGHT)
+            self.pressButton(XcmpConsts.BTN_RIGHT)
             await asyncio.sleep(0.1)
 
-            self.pressButton(ButtonCodes.RIGHT)
+            self.pressButton(XcmpConsts.BTN_RIGHT)
         asyncio.run(buttonPressRoutine())
 
     def setBrightness(self, brightness):
-        logging.debug("Setting zone to {}".format(brightness))
+        logging.debug("XCMP: Setting brightness to {}".format(brightness))
 
-    def getDisplayText(self):
-        return self._displaytext
-    
-    def getChannel(self):
-        return self._channel
+    def getVersion(self):
+        reqBytes = XcmpByteFactory.genVerReq()
+        self._xnl.sendXcmp(reqBytes)
 
-    def getZone(self):
-        return self._zone
+    def getSerial(self):
+        reqBytes = XcmpByteFactory.genSerialReq()
+        self._xnl.sendXcmp(reqBytes)
 
-    def getBrightness(self):
-        return self._brightness
+    def getModel(self):
+        reqBytes = XcmpByteFactory.genModelReq()
+        self._xnl.sendXcmp(reqBytes)
 
     def updateStatus(self):
-        logging.debug("Updating status")
+        logging.debug("XCMP: Updating status")
 
     def pressButton(self, button):
-        butOn = self._genUserButton(button, 1)
-        self.send(butOn)
+        butOn = XcmpByteFactory.genUserButton(button, 1)
+        self._xnl.sendXcmp(butOn)
         time.sleep(0.1)
-        butOff = self._genUserButton(button, 0)
-        self.send(butOff)
+        butOff = XcmpByteFactory.genUserButton(button, 0)
+        self._xnl.sendXcmp(butOff)
 
-    #byte generation functions
-
-    def _genChZnSel(self, function, zone=0, position=0):
-        transIdBaseBytes = int(self._transIdBase).to_bytes(1, "big")
-        transIdBytes = int(self._transId).to_bytes(1, "big")
-        flagBytes = int(self._flag).to_bytes(1, "big")
-
-        header = b'\x00\x13\x00\x0b\x01' + flagBytes + b'\x00\x06' + self._xcmpAddress + transIdBaseBytes + transIdBytes + b'\x00\x07\x04\x0d'
-        zoneBytes = int(zone).to_bytes(2, "big")
-        positionBytes = int(position).to_bytes(2, "big")
-
-        return header + function + zoneBytes + positionBytes
-
-    def _genUserButton(self, button, status):
-        transIdBaseBytes = int(self._transIdBase).to_bytes(1, "big")
-        transIdBytes = int(self._transId).to_bytes(1, "big")
-        flagBytes = int(self._flag).to_bytes(1, "big")
-        header = b'\x00\x15\x00\x0b\x01' + flagBytes + b'\x00\x06' + self._xcmpAddress + transIdBaseBytes + transIdBytes + b'\x00\x09\xb4\x05\x00\x00\x00'
-        footer = b'\x00\x03'
-        statusBytes = int(status).to_bytes(1, "big")
-        return header + button + statusBytes + footer
+    def ptt(self, status):
+        '''Key up/down the radio. Pass a 1 to key up, 0 to key down'''
+        pttBytes = XcmpByteFactory.genPtt(status)
+        logging.debug("XCMP: PTT: {}".format(pttBytes))
+        self._xnl.sendXcmp(pttBytes)
