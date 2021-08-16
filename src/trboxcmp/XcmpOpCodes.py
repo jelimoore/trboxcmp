@@ -11,13 +11,22 @@ class XcmpOpCodes():
 
     SPKR_CTRL_BCAST = b'\xb4\x07'
 
+    TXPWRLVL_BCAST = b'\xb4\x08'
+    SHUTDOWN_REQ = b'\x04\x0a'
+
     CHZNSEL_REQ = b'\x04\x0d'
+    CHZNSEL_RES = b'\x84\x0d'
+    CHZNSEL_BCAST = b'\xb4\x0d'
 
     BATTLVL_BCAST = b'\xb4\x10'
 
     BRIGHTNESS_REQ = b'\x04\x11'
     BRIGHTNESS_RES = b'\x84\x11'
     BRIGHTNESS_BCAST = b'\xb4\x11'
+
+    EMERGENCY_REQ = b'\x04\x13'
+    EMERGENCY_RES = b'\x84\x13'
+    EMERGENCY_BCAST = b'\xb4\x13'
 
     CALL_CTRL_BCAST = b'\xb4\x1e'
 

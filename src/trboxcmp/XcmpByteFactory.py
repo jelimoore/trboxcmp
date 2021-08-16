@@ -1,4 +1,4 @@
-from src.trboxcmp.XcmpOpCodes import XcmpOpCodes
+from trboxcmp.XcmpOpCodes import XcmpOpCodes
 
 
 class XcmpByteFactory():
@@ -28,6 +28,7 @@ class XcmpByteFactory():
     @staticmethod
     def genBrightness(function, brightness=0):
         #functions = 00 - inc, 01 - dec, 03 - blkout?, 04-set
+        #brightness can be 0-255
         header = XcmpOpCodes.BRIGHTNESS_REQ
         funcBytes = int(function).to_bytes(1, "big")
         brightBytes = int(brightness).to_bytes(1, "big")

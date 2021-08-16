@@ -2,9 +2,9 @@ import logging
 import asyncio
 import time
 import binascii
-from src.trboxcmp.xnl import XnlListener
-from src.trboxcmp.XcmpByteFactory import XcmpByteFactory
-from src.trboxcmp.XcmpOpCodes import XcmpOpCodes, XcmpConsts
+from trboxcmp.xnl import XnlListener
+from trboxcmp.XcmpByteFactory import XcmpByteFactory
+from trboxcmp.XcmpOpCodes import XcmpOpCodes, XcmpConsts
 
 class Xcmp:
     # op defs for callback
@@ -150,7 +150,16 @@ class Xcmp:
         asyncio.run(buttonPressRoutine())
 
     def setBrightness(self, brightness):
-        logging.debug("XCMP: Setting brightness to {}".format(brightness))
+        reqBytes = XcmpByteFactory.genBrightness(4, brightness)
+        self._xnl.sendXcmp(reqBytes)
+
+    def incBrightness(self):
+        reqBytes = XcmpByteFactory.genBrightness(0)
+        self._xnl.sendXcmp(reqBytes)
+
+    def decBrightness(self):
+        reqBytes = XcmpByteFactory.genBrightness(1)
+        self._xnl.sendXcmp(reqBytes)
 
     def getVersion(self):
         reqBytes = XcmpByteFactory.genVerReq()
