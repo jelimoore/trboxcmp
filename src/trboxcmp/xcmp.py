@@ -18,6 +18,7 @@ class Xcmp:
         self._xnl = XnlListener(keys, delta, self.onXcmpIn, ip, port)
         self._callback = callback
         self._byteFactory = XcmpByteFactory
+        self._connected = False
 
     def sendRaw(self, bytes):
         self._xnl.sendXcmp(bytes)
@@ -46,11 +47,12 @@ class Xcmp:
             #msg
             #b4 1e 06 01 01 03 00 7b 96 00 00 03 00 0c 3b
             #first 2 - opcode
-            #2-4 - 06 01 - start of call?
-            #      06 02 - start of call?
-            #      06 08 - key
-            #      06 07 - dekey
-            #      06 03 - after grp hangtime: calls up!
+            #2-4 - 06 01 - call decoded
+            #      06 02 - call in progress
+            #      06 08 - call decoded clear
+            #      06 09 - call decoded enc valid key
+            #      06 07 - hang time
+            #      06 03 - call end
             #6-8 - rid
             #12-14 - tgid
             result['type'] = self.OP_CALL_INFO
@@ -91,7 +93,7 @@ class Xcmp:
             dontCallBack = True
 
         else:
-            logging.warning("Got unknown XCMP opcode: {}".format(opCode))
+            logging.debug("Got unknown XCMP opcode: {}".format(opCode))
             dontCallBack = True
 
         result['payload'] = payload
@@ -100,7 +102,13 @@ class Xcmp:
             self._callback(result)
 
     def connect(self):
-        self._xnl.connect()
+        #don't attempt reconnection
+        if self._connected:
+            pass
+        else:
+            self._xnl.connect()
+            #give the connection a few seconds before we go blasting data down it
+            time.sleep(0.5)
 
     def close(self):
         self._xnl.close()
@@ -109,22 +117,18 @@ class Xcmp:
         self._xnl.sendXcmp(bytesIn)
 
     def setChannel(self, channel):
-        logging.debug("XCMP: Setting channel to {}".format(channel))
         bytes = self._byteFactory.genChZnSel(XcmpConsts.CH_SEL, 0, channel)
         self._xnl.sendXcmp(bytes)
 
     def setZone(self, zone):
-        logging.debug("XCMP: Setting zone to {}".format(zone))
         bytes = self._byteFactory.genChZnSel(XcmpConsts.ZN_SEL, zone, 0)
         self._xnl.sendXcmp(bytes)
 
     def chUp(self):
-        logging.debug("XCMP: Sending channel up")
         bytes = self._byteFactory.genChZnSel(XcmpConsts.CH_UP)
         self._xnl.sendXcmp(bytes)
 
     def chDown(self):
-        logging.debug("XCMP: Sending channel down")
         bytes = self._byteFactory.genChZnSel(XcmpConsts.CH_DN)
         self._xnl.sendXcmp(bytes)
 

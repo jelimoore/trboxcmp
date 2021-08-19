@@ -52,8 +52,8 @@ class XnlListener():
             for k in range(32):
                 sum += self._delta
                 # TEA (tiny encryption algorithm) - thank you @duggerd for pointing this out
-                i += np.int32(j << 4 & 0xfffffff0) + self._key[0] ^ np.int32(j + sum) ^ np.int32(j >> 5 & 0x7ffffff) + self._key[1]
-                j += np.int32(i << 4 & 0xfffffff0) + self._key[2] ^ np.int32(i + sum) ^ np.int32(i >> 5 & 0x7ffffff) + self._key[3]
+                i += np.int32(np.int32(j << 4 & 0xfffffff0) + self._key[0] ^ np.int32(j + sum) ^ np.int32(j >> 5 & 0x7ffffff) + self._key[1])
+                j += np.int32(np.int32(i << 4 & 0xfffffff0) + self._key[2] ^ np.int32(i + sum) ^ np.int32(i >> 5 & 0x7ffffff) + self._key[3])
 
         #two's complement -> hex
         if (i < 0):

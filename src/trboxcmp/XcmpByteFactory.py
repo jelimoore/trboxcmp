@@ -19,7 +19,7 @@ class XcmpByteFactory():
     @staticmethod
     def genPtt(status):
         header = XcmpOpCodes.KEY_REQ
-        #rewrite the status because some brainiac at motorola decided 1 = key up and 2 = dekey instead of, i don't know, 0 being to dekey
+        #rewrite the status because  1 = key up and 2 = dekey
         if (status == 0):
             status = 2
         statusBytes = int(status).to_bytes(1, "big")
@@ -43,6 +43,41 @@ class XcmpByteFactory():
     def genSerialReq():
         header = XcmpOpCodes.RADIOSTATUS_REQ
         return header + b'\x08'
+    
+    @staticmethod
+    def genDspVerReq():
+        header = XcmpOpCodes.RADIOSTATUS_REQ
+        return header + b'\x10'
+
+    @staticmethod
+    def genRfBandReq():
+        header = XcmpOpCodes.RADIOSTATUS_REQ
+        return header + b'\x63'
+
+    @staticmethod
+    def genPowerLvlReq():
+        header = XcmpOpCodes.RADIOSTATUS_REQ
+        return header + b'\x65'
+
+    @staticmethod
+    def genFlashSizeReq():
+        header = XcmpOpCodes.RADIOSTATUS_REQ
+        return header + b'\x6d'
+
+    @staticmethod
+    def genCHVerReq():
+        header = XcmpOpCodes.RADIOSTATUS_REQ
+        return header + b'\x70'
+
+    @staticmethod
+    def genOpBoardHwReq():
+        header = XcmpOpCodes.RADIOSTATUS_REQ
+        return header + b'\x80'
+
+    @staticmethod
+    def genOpBoardFwReq():
+        header = XcmpOpCodes.RADIOSTATUS_REQ
+        return header + b'\x81'
 
     @staticmethod
     def genVerReq():
@@ -53,3 +88,19 @@ class XcmpByteFactory():
     def genIdReq():
         header = XcmpOpCodes.VERSTATUS_REQ
         return header + b'\x0e'
+    
+    @staticmethod
+    def genMicSelect(micToSelect):
+        """mic 0 - internal; mic 1 - external"""
+        header = XcmpOpCodes.MICCTRL_REQ
+        micBytes = int(micToSelect).to_bytes(1, "big")
+        return header + b'\x03' + micBytes + b'\x00'
+
+    @staticmethod
+    def genRadioControl(func, rid):
+        """func 1 - stun, func 2 - unstun"""
+        header = XcmpOpCodes.RADIOCTRL_REQ
+        funcBytes = int(func).to_bytes(1, "big")
+        ridBytes = int(rid).to_bytes(3, "big")
+        return header + funcBytes + b'\x01\x01' + ridBytes
+

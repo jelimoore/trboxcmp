@@ -12,12 +12,23 @@ class XcmpOpCodes():
     SPKR_CTRL_BCAST = b'\xb4\x07'
 
     TXPWRLVL_BCAST = b'\xb4\x08'
+
+    TONECTRL_REQ = b'\x04\x09'
+    TONECTRL_RES = b'\x84\x09'
+    TONECTRL_BCAST = b'\xb4\x09'
+
     SHUTDOWN_REQ = b'\x04\x0a'
 
     CHZNSEL_REQ = b'\x04\x0d'
     CHZNSEL_RES = b'\x84\x0d'
     CHZNSEL_BCAST = b'\xb4\x0d'
 
+    MICCTRL_REQ = b'\x04\x0e'
+    MICCTRL_RES = b'\x84\x0e'
+    MICCTRL_BCAST = b'\xb4\x0e'
+
+    BATTLVL_BCAST = b'\x04\x10'
+    BATTLVL_BCAST = b'\x84\x10'
     BATTLVL_BCAST = b'\xb4\x10'
 
     BRIGHTNESS_REQ = b'\x04\x11'
@@ -27,6 +38,10 @@ class XcmpOpCodes():
     EMERGENCY_REQ = b'\x04\x13'
     EMERGENCY_RES = b'\x84\x13'
     EMERGENCY_BCAST = b'\xb4\x13'
+
+    RADIOCTRL_REQ = b'\x04\x1c'
+    RADIOCTRL_RES = b'\x84\x1c'
+    RADIOCTRL_BCAST = b'\xb4\x1c'
 
     CALL_CTRL_BCAST = b'\xb4\x1e'
 
