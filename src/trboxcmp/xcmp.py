@@ -14,8 +14,8 @@ class Xcmp:
     OP_VERSTATUS = 4
     OP_BATTLVL = 5
 
-    def __init__(self, keys, delta, callback, ip="192.168.10.1", port=8002):
-        self._xnl = XnlListener(keys, delta, self.onXcmpIn, ip, port)
+    def __init__(self, keys, delta, kid, callback, ip="192.168.10.1", port=8002):
+        self._xnl = XnlListener(keys, delta, kid, self.onXcmpIn, ip, port)
         self._callback = callback
         self._byteFactory = XcmpByteFactory
         self._connected = False

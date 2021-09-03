@@ -15,13 +15,15 @@ class XnlOpCodes():
     XNL_ACK = b'\x00\x0c'
 
 class XnlListener():
-    def __init__(self, keys, delta, callback, ip, port):
+    def __init__(self, keys, delta, kid, callback, ip, port):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._process = Process(target=self._listener_loop)
         self._key = keys
         self._delta = delta
         self._ip = ip
         self._port = port
+        #key ID for xcmp auth
+        self._kid = kid.to_bytes(1, "big")
         self._transIdBase = 1
         self._transId = 0
         self._flag = 0
@@ -92,7 +94,7 @@ class XnlListener():
         authResponse = self._generateKey(authChallenge)
         
         #send the key to the radio
-        self._sock.send(b'\x00\x18\x00\x06\x00\x00\x00\x06' + tempAddr + b'\x00\x00\x00\x0c\x00\x00\x0a\x01' + authResponse)
+        self._sock.send(b'\x00\x18\x00\x06\x00\x00\x00\x06' + tempAddr + b'\x00\x00\x00\x0c\x00\x00\x0a' + self._kid + authResponse)
         data = self._sock.recv(1024)
         self._xnlAddress = data[16:18]
         if (data[14:15] != b'\x01'):
