@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 import socket
-from multiprocessing import Process, Value
+import threading
 import logging
 
 class XnlOpCodes():
@@ -17,7 +17,7 @@ class XnlOpCodes():
 class XnlListener():
     def __init__(self, keys, delta, kid, callback, ip, port):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._process = Process(target=self._listener_loop)
+        self._process = threading.Thread(target=self._listener_loop, daemon=True)
         self._key = keys
         self._delta = delta
         self._ip = ip
@@ -104,6 +104,7 @@ class XnlListener():
 
         #thread off the listsner into its own event loop
         self._listen_forever()
+        return True
 
     def sendXcmp(self, bytesIn):
         msg = self._generateXnlMessage(bytesIn)

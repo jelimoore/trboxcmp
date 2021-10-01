@@ -7,6 +7,14 @@ class XcmpOpCodes():
 
     DEVINITSTS_BCAST = b'\xb4\x00'
 
+    DISPTXT_REQ = b'\x04\x01'
+    DISPTXT_RES = b'\x84\x01'
+    DISPTXT_BCAST = b'\xb4\x01'
+
+    INDUP_REQ = b'\x04\x02'
+    INDUP_RES = b'\x84\x02'
+    INDUP_BCAST = b'\xb4\x02'
+
     PINPUT_BCAST = b'\xb4\x05'
 
     SPKR_CTRL_BCAST = b'\xb4\x07'
@@ -53,6 +61,8 @@ class XcmpConsts():
     # physical user input button opcode defs
     BTN_STS_PRESSED = b'\x01'
     BTN_STS_RELEASED = b'\x00'
+    BTN_VOL = b'\x02'
+    BTN_CH = b'\x04'
     BTN_LEFT = b'\x80'
     BTN_RIGHT = b'\x82'
     BTN_UP = b'\x87'
@@ -64,18 +74,22 @@ class XcmpConsts():
     BTN_P2 = b'\xa1'
     BTN_P3 = b'\xa2'
     BTN_P4 = b'\xa3'
-    BTN_KP_1 = b''
-    BTN_KP_2 = b''
-    BTN_KP_3 = b''
-    BTN_KP_4 = b''
-    BTN_KP_5 = b''
-    BTN_KP_6 = b''
-    BTN_KP_7 = b''
-    BTN_KP_8 = b''
-    BTN_KP_9 = b''
-    BTN_KP_0 = b''
-    BTN_KP_POUND = b''
-    BTN_KP_STAR = b''
+    BTN_KP_1 = b'\x30'
+    BTN_KP_2 = b'\x31'
+    BTN_KP_3 = b'\x32'
+    BTN_KP_4 = b'\x33'
+    BTN_KP_5 = b'\x34'
+    BTN_KP_6 = b'\x35'
+    BTN_KP_7 = b'\x36'
+    BTN_KP_8 = b'\x37'
+    BTN_KP_9 = b'\x38'
+    BTN_KP_0 = b'\x39'
+    BTN_KP_STAR = b'\x3a'
+    BTN_KP_POUND = b'\x3b'
+    BTN_SIDE_1 = b'\x60'
+    BTN_SIDE_2 = b'\x61'
+    BTN_SIDE_3 = b'\x62'
+    BTN_TOP = b'\x94'
 
     # channel/zone select opcodes
     CH_UP = b'\x03'

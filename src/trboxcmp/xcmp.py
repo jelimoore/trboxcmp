@@ -13,6 +13,7 @@ class Xcmp:
     OP_RADIOSTATUS = 3
     OP_VERSTATUS = 4
     OP_BATTLVL = 5
+    OP_DISPTXT = 6
 
     def __init__(self, keys, delta, kid, callback, ip="192.168.10.1", port=8002):
         self._xnl = XnlListener(keys, delta, kid, self.onXcmpIn, ip, port)
@@ -68,17 +69,20 @@ class Xcmp:
             # radio model number
             if (statusCondition == b'\x07'):
                 modelNo = data[4:17].replace(b'\x00', b'').decode()
-                payload['modelNumber'] = modelNo
+                payload['respType'] = "model"
+                payload['content'] = modelNo
 
             # radio serial number
             if (statusCondition == b'\x08'):
                 serialNo = data[4:14].replace(b'\x00', b'').decode()
-                payload['serialNumber'] = serialNo
+                payload['respType'] = "serial"
+                payload['content'] = serialNo
 
             # radio ID
             if (statusCondition == b'\x0e'):
                 rid = data[5:8].replace(b'\x00', b'').decode()
-                payload['rid'] = rid
+                payload['respType'] = "rid"
+                payload['content'] = rid
 
         elif (opCode == XcmpOpCodes.VERSTATUS_RES):
             result['type'] = self.OP_VERSTATUS
@@ -88,7 +92,14 @@ class Xcmp:
             result['type'] = self.OP_BATTLVL
             payload['battLevel'] = int.from_bytes(data[3:4], "big")
 
-        elif (opCode == XcmpOpCodes.DEVINITSTS_BCAST):
+        elif (opCode == XcmpOpCodes.DISPTXT_BCAST):
+            result['type'] = self.OP_DISPTXT
+            payload['lineNo'] = int.from_bytes(data[2:3], "big")
+            #decode as latin1 so it doesn't kick back errors about bad bytes
+            payload['content'] = data[125:].replace(b'\x00', b'').decode('latin1')
+            #logging.debug("Raw Text Data: {}".format(data[125:]))
+
+        elif (opCode == XcmpOpCodes.DEVINITSTS_BCAST or opCode == XcmpOpCodes.INDUP_BCAST):
             #drop it on the floor, we don't care
             dontCallBack = True
 
@@ -104,11 +115,14 @@ class Xcmp:
     def connect(self):
         #don't attempt reconnection
         if self._connected:
-            pass
+            return True
         else:
-            self._xnl.connect()
-            #give the connection a few seconds before we go blasting data down it
-            time.sleep(0.5)
+            if (self._xnl.connect()):
+                #give the connection a few seconds to init before we go blasting data down it
+                time.sleep(0.5)
+                return True
+            else:
+                return False
 
     def close(self):
         self._xnl.close()
@@ -187,8 +201,31 @@ class Xcmp:
         butOff = XcmpByteFactory.genUserButton(button, 0)
         self._xnl.sendXcmp(butOff)
 
+    def sendButton(self, button, state):
+        '''Send button with specific state rather than just pressing it'''
+        but = XcmpByteFactory.genUserButton(button, state)
+        self._xnl.sendXcmp(but)
+
     def ptt(self, status):
         '''Key up/down the radio. Pass a 1 to key up, 0 to key down'''
         pttBytes = XcmpByteFactory.genPtt(status)
-        logging.debug("XCMP: PTT: {}".format(pttBytes))
+        logging.debug("XCMP: PTT {}".format("on" if status > 0 else "off"))
         self._xnl.sendXcmp(pttBytes)
+    
+    def selectMic(self, mic):
+        '''Select radio mic, 0=internal; 1=external'''
+        micBytes = XcmpByteFactory.genMicSelect(mic)
+        logging.debug("XCMP: Changing mic to {}".format(mic))
+        self._xnl.sendXcmp(micBytes)
+
+    def stunRadio(self, rid):
+        '''Stuns radio using OTA interface'''
+        ctrlBytes = XcmpByteFactory.genRadioControl(1, rid)
+        logging.debug("XCMP: Stunning radio {}".format(rid))
+        self._xnl.sendXcmp(ctrlBytes)
+
+    def unstunRadio(self, rid):
+        '''Unstuns radio using OTA interface'''
+        ctrlBytes = XcmpByteFactory.genRadioControl(2, rid)
+        logging.debug("XCMP: Unstunning radio {}".format(rid))
+        self._xnl.sendXcmp(ctrlBytes)

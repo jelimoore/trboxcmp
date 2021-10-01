@@ -94,7 +94,7 @@ class XcmpByteFactory():
         """mic 0 - internal; mic 1 - external"""
         header = XcmpOpCodes.MICCTRL_REQ
         micBytes = int(micToSelect).to_bytes(1, "big")
-        return header + b'\x03' + micBytes + b'\x00'
+        return header + b'\x03' + micBytes + b'\x00\x00'
 
     @staticmethod
     def genRadioControl(func, rid):
@@ -103,4 +103,12 @@ class XcmpByteFactory():
         funcBytes = int(func).to_bytes(1, "big")
         ridBytes = int(rid).to_bytes(3, "big")
         return header + funcBytes + b'\x01\x01' + ridBytes
+
+    @staticmethod
+    def genToneReq(func, tone):
+        '''00 = stop; 01 = start/play; 02 = disable; 03 = enable'''
+        header = XcmpOpCodes.TONECTRL_REQ
+        toneBytes = int(tone).to_bytes(2, "big")
+        funcBytes = int(func).to_bytes(1, "big")
+        return header + funcBytes + toneBytes
 
