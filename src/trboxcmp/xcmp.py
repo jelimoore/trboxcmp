@@ -48,12 +48,23 @@ class Xcmp:
             #msg
             #b4 1e 06 01 01 03 00 7b 96 00 00 03 00 0c 3b
             #first 2 - opcode
-            #2-4 - 06 01 - call decoded
-            #      06 02 - call in progress
-            #      06 08 - call decoded clear
-            #      06 09 - call decoded enc valid key
-            #      06 07 - hang time
-            #      06 03 - call end
+            #2 - 00 - no call feature
+            #    01 - selective call
+            #    02 - call alert
+            #    04 - enh priv call
+            #    05 - enh phone call
+            #    06 - group call
+            #    08 - call alert voice
+            #3 - 01 - call decoded
+            #    02 - call in progress
+            #    03 - call end
+            #    04 - call initiated
+            #    06 - no ack
+            #    07 - hang time
+            #    08 - call decoded clear
+            #    09 - call decoded enc valid key
+            #    a0 - call decoded enc, invalid key
+            #    
             #6-8 - rid
             #12-14 - tgid
             result['type'] = self.OP_CALL_INFO

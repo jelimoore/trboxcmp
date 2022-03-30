@@ -4,6 +4,16 @@ import socket
 import threading
 import logging
 
+class XNLAlreadyConnected(Exception):
+    pass
+
+class XNLConnectionFailed(Exception):
+    pass
+
+class XNLTransmissionFailed(Exception):
+    pass
+
+
 class XnlOpCodes():
     XNL_MASTER_STATUS_BDCAST = b'\x00\x02'
     XNL_KEY_REQUEST = b'\x00\x04'
@@ -22,13 +32,13 @@ class XnlListener():
         self._delta = delta
         self._ip = ip
         self._port = port
-        #key ID for xcmp auth
-        self._kid = kid.to_bytes(1, "big")
+        self._kid = kid.to_bytes(1, "big")  #key ID for xcmp auth
         self._transIdBase = 1
         self._transId = 0
         self._flag = 0
         self._xnlAddress = b'\x99\x99' # init address with invalid value
         self._callback = callback
+        self.connected = False  # are we connected? used for calling func to know if we are connected or not
 
     def _generateKey(self, input):
         # convert hex to bin to int (don't ask why, it's the only way that works)
@@ -71,44 +81,58 @@ class XnlListener():
         return result
 
     def connect(self):
-        #TODO: programatically generate the bytes
-        logging.info("Opening connection to {}:{}".format(self._ip, self._port))
-        self._sock.connect((self._ip, self._port))
-        #master status broadcast
-        data = self._sock.recv(1024)
-        opCode = self._getOpCode(data)
-        if (opCode != XnlOpCodes.XNL_MASTER_STATUS_BDCAST):
-            logging.error("Initial opcode NOT master status received!")
-            self.close()
-        
-        #auth key request/reply
-        self._sock.send(b'\x00\x0c\x00\x04\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00')
-        data = self._sock.recv(1024)
-        opCode = self._getOpCode(data)
-        tempAddr = data[14:16]
-        if (opCode != XnlOpCodes.XNL_KEY_REPLY):
-            logging.error("Key reply NOT received!")
-            self.close()
-        
-        authChallenge = data[16:]
-        authResponse = self._generateKey(authChallenge)
-        
-        #send the key to the radio
-        self._sock.send(b'\x00\x18\x00\x06\x00\x00\x00\x06' + tempAddr + b'\x00\x00\x00\x0c\x00\x00\x0a' + self._kid + authResponse)
-        data = self._sock.recv(1024)
-        self._xnlAddress = data[16:18]
-        if (data[14:15] != b'\x01'):
-            logging.error("XNL: Radio replied: Invalid auth key. Status code was: {}".format(data[14:15]))
-            self.close()
-        logging.info("XNL: Connected!")
+        if (self.connected == True):
+            # we are already connected
+            raise XNLAlreadyConnected()
+        try:
+            #TODO: programatically generate the bytes
+            logging.info("Opening connection to {}:{}".format(self._ip, self._port))
+            self._sock.connect((self._ip, self._port))
+            #master status broadcast
+            data = self._sock.recv(1024)
+            opCode = self._getOpCode(data)
+            if (opCode != XnlOpCodes.XNL_MASTER_STATUS_BDCAST):
+                logging.error("Initial opcode NOT master status received!")
+                self.close()
+            
+            #auth key request/reply
+            self._sock.send(b'\x00\x0c\x00\x04\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00')
+            data = self._sock.recv(1024)
+            opCode = self._getOpCode(data)
+            tempAddr = data[14:16]
+            if (opCode != XnlOpCodes.XNL_KEY_REPLY):
+                logging.error("Key reply NOT received!")
+                self.close()
+            
+            authChallenge = data[16:]
+            authResponse = self._generateKey(authChallenge)
+            
+            #send the key to the radio
+            self._sock.send(b'\x00\x18\x00\x06\x00\x00\x00\x06' + tempAddr + b'\x00\x00\x00\x0c\x00\x00\x0a' + self._kid + authResponse)
+            data = self._sock.recv(1024)
+            self._xnlAddress = data[16:18]
+            if (data[14:15] != b'\x01'):
+                logging.error("XNL: Radio replied: Invalid auth key. Status code was: {}".format(data[14:15]))
+                self.close()
+            logging.info("XNL: Connected!")
 
-        #thread off the listsner into its own event loop
-        self._listen_forever()
-        return True
+            #thread off the listsner into its own event loop
+            self._listen_forever()
+            self.connected = True
+            return True
+        except:
+            self.connected = False
+            raise XNLConnectionFailed()
+
 
     def sendXcmp(self, bytesIn):
         msg = self._generateXnlMessage(bytesIn)
-        self._sock.send(msg)
+        try:
+            self._sock.send(msg)
+        except:
+            self.connected = False
+            raise XNLTransmissionFailed()
+
 
     def _generateXnlMessage(self, bytesIn):
         #inc transaction ID and flag
@@ -140,15 +164,19 @@ class XnlListener():
 
     def _listener_loop(self):
         while True:
-            data = self._sock.recv(1024)
-            logging.debug("XNL: Received a message {}".format(data))
-            opCode = self._getOpCode(data)
-            messageId = self._getMessageId(data)
-            flag = self._getFlag(data)
-            if (opCode == XnlOpCodes.XNL_DATA):
-                #strip XNL header and send xcmp message to the callback
-                self._callback(data[14:])
-                self._sock.send(b'\x00\x0c\x00\x0c\x01' + flag + b'\x00\x06' + self._xnlAddress + messageId + b'\x00\x00')
+            try:
+                data = self._sock.recv(1024)
+                logging.debug("XNL: Received a message {}".format(data))
+                opCode = self._getOpCode(data)
+                messageId = self._getMessageId(data)
+                flag = self._getFlag(data)
+                if (opCode == XnlOpCodes.XNL_DATA):
+                    #strip XNL header and send xcmp message to the callback
+                    self._callback(data[14:])
+                    self._sock.send(b'\x00\x0c\x00\x0c\x01' + flag + b'\x00\x06' + self._xnlAddress + messageId + b'\x00\x00')
+            except:
+                self.connected = False
+                raise XNLTransmissionFailed()
 
     def _getOpCode(self, dataIn):
         return dataIn[2:4]

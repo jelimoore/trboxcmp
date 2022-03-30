@@ -4,3 +4,10 @@ dist/
 testing.py
 __pycache__/
 *.pyc
+*.pyc
+[Ll]ib/
+[Ss]cripts/
+[Ii]nclude/
+[Bb]in/
+pyvenv.cfg
+venv/
